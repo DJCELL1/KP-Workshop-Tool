@@ -80,15 +80,27 @@ log = logging.getLogger('workshop')
 # =============================================================================
 
 def load_credentials():
-    """Load Cin7 API credentials from .streamlit/secrets.toml."""
+    """Load Cin7 API credentials from environment variables or .streamlit/secrets.toml."""
+    # Try environment variables first (for Render/Railway/cloud deployment)
+    if os.environ.get('CIN7_USERNAME') and os.environ.get('CIN7_KEY'):
+        log.info("Using credentials from environment variables")
+        return (
+            os.environ.get('CIN7_API_BASE', 'https://api.cin7.com/api/v1'),
+            os.environ['CIN7_USERNAME'],
+            os.environ['CIN7_KEY']
+        )
+
+    # Fall back to .streamlit/secrets.toml (for local development)
     secrets_path = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         '.streamlit', 'secrets.toml'
     )
     if not os.path.exists(secrets_path):
-        log.error(f"Secrets file not found: {secrets_path}")
+        log.error("No credentials found. Set CIN7_USERNAME and CIN7_KEY environment variables, "
+                   "or create .streamlit/secrets.toml")
         sys.exit(1)
 
+    log.info("Using credentials from .streamlit/secrets.toml")
     with open(secrets_path, 'rb') as f:
         secrets = tomllib.load(f)
 
