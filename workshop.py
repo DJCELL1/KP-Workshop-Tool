@@ -407,6 +407,45 @@ def api_logo():
     return '', 404
 
 
+@app.route('/manifest.json')
+def manifest():
+    """PWA manifest so the app can be installed on Android tablets."""
+    return jsonify({
+        "name": "Kickplate Workshop Stages",
+        "short_name": "KP Workshop",
+        "description": "Drag-and-drop board for managing kickplate job stages",
+        "start_url": "/",
+        "display": "standalone",
+        "orientation": "landscape",
+        "background_color": "#F5F7FA",
+        "theme_color": "#f69000",
+        "icons": [
+            {
+                "src": "/api/logo",
+                "sizes": "192x192",
+                "type": "image/jpeg",
+                "purpose": "any"
+            },
+            {
+                "src": "/api/logo",
+                "sizes": "512x512",
+                "type": "image/jpeg",
+                "purpose": "any"
+            }
+        ]
+    }), 200, {'Content-Type': 'application/manifest+json'}
+
+
+@app.route('/sw.js')
+def service_worker():
+    """Minimal service worker for PWA install prompt."""
+    return """
+self.addEventListener('install', function(e) { self.skipWaiting(); });
+self.addEventListener('activate', function(e) { clients.claim(); });
+self.addEventListener('fetch', function(e) { e.respondWith(fetch(e.request)); });
+""", 200, {'Content-Type': 'application/javascript'}
+
+
 # =============================================================================
 # HTML TEMPLATE
 # =============================================================================
@@ -416,6 +455,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f69000">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/api/logo">
+<link rel="apple-touch-icon" href="/api/logo">
 <title>Kickplate Workshop Stages | Hardware Direct</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.6/Sortable.min.js"></script>
 <style>
@@ -753,15 +799,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     .error-banner.show { display: block; }
 
-    /* Responsive */
+    /* Tablet landscape (most common workshop tablet) */
+    @media (min-width: 800px) and (max-width: 1200px) {
+        .card { padding: 0.85rem; min-height: 54px; }
+        .card-ref { font-size: 1rem; }
+        .card-project { font-size: 0.9rem; }
+        .badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; }
+        .column-title { font-size: 1.15rem; }
+    }
+
+    /* Tablet portrait */
     @media (max-width: 1024px) {
         .board { grid-template-columns: repeat(2, 1fr); }
         .header-title { font-size: 1.2rem; }
+        .card { padding: 0.85rem; }
     }
 
+    /* Phone */
     @media (max-width: 600px) {
         .board { grid-template-columns: 1fr; }
         .header { flex-direction: column; gap: 0.5rem; text-align: center; }
+    }
+
+    /* Prevent pull-to-refresh interfering with drag on mobile */
+    body { overscroll-behavior-y: contain; }
+
+    /* Standalone PWA mode - remove extra padding for status bar */
+    @media (display-mode: standalone) {
+        body { padding-top: env(safe-area-inset-top); }
     }
 </style>
 </head>
@@ -1058,6 +1123,11 @@ document.addEventListener('DOMContentLoaded', function() {
     loadJobs();
     initSortable();
     startAutoRefresh();
+
+    // Register PWA service worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').catch(function() {});
+    }
 });
 </script>
 </body>
